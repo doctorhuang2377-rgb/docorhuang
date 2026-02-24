@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>肺癌 TNM 分期助手</title>
+    <link rel="stylesheet" href="./styles.css">
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#3b82f6">
+    <link rel="apple-touch-icon" href="./icon-192.png">
+</head>
+<body>
+    <header class="app-header">
+        <h1>肺癌 TNM 分期助手 (第8版)</h1>
+        <button id="history-btn" class="icon-btn">📜</button>
+    </header>
+
+    <main class="app-main">
+        <div class="tnm-selector">
+            <div class="tabs">
+                <button class="tab-btn active" data-target="t-panel">T (原发肿瘤)</button>
+                <button class="tab-btn" data-target="n-panel">N (淋巴结)</button>
+                <button class="tab-btn" data-target="m-panel">M (远处转移)</button>
+            </div>
+            
+            <div id="t-panel" class="tab-panel active">
+                <!-- T Options will be injected here -->
+            </div>
+            <div id="n-panel" class="tab-panel">
+                <!-- N Options will be injected here -->
+            </div>
+            <div id="m-panel" class="tab-panel">
+                <!-- M Options will be injected here -->
+            </div>
+        </div>
+
+        <div class="result-card">
+            <div class="result-header">
+                <h2>分期结果</h2>
+                <span id="stage-result" class="stage-badge">--</span>
+            </div>
+            <div class="result-details">
+                <p><strong>TNM 组合:</strong> <span id="tnm-combo">Tx Nx Mx</span></p>
+                <p><strong>5年生存率:</strong> <span id="survival-rate">--</span></p>
+                <div id="stage-desc" class="stage-desc"></div>
+            </div>
+            <div class="action-buttons">
+                <button id="save-btn" class="primary-btn">保存记录</button>
+                <button id="copy-btn" class="secondary-btn">复制报告</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- History Modal -->
+    <div id="history-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>历史记录</h3>
+                <button id="close-history" class="close-btn">&times;</button>
+            </div>
+            <ul id="history-list" class="history-list">
+                <!-- History items -->
+            </ul>
+            <button id="clear-history" class="danger-btn">清空记录</button>
+        </div>
+    </div>
+
+    <script src="./data.js"></script>
+    <script src="./app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            // Use './sw.js' to ensure relative path loading
+            navigator.serviceWorker.register('./sw.js')
+                .then(reg => console.log('SW registered!', reg))
+                .catch(err => console.log('SW failed!', err));
+        }
+    </script>
+</body>
+</html>
