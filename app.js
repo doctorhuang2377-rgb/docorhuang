@@ -41,6 +41,179 @@ function initUI() {
     });
     document.getElementById('clear-history').addEventListener('click', clearHistory);
     document.getElementById('copy-btn').addEventListener('click', copyReport);
+    
+    initAnalyzeUI();
+}
+
+function initAnalyzeUI() {
+    const analyzeBtn = document.getElementById('analyze-btn');
+    const analyzeModal = document.getElementById('analyze-modal');
+    const closeAnalyze = document.getElementById('close-analyze');
+    const clearReport = document.getElementById('clear-report');
+    const runAnalyze = document.getElementById('run-analyze');
+
+    if (analyzeBtn) {
+        analyzeBtn.addEventListener('click', () => {
+            analyzeModal.classList.remove('hidden');
+        });
+    }
+
+    if (closeAnalyze) {
+        closeAnalyze.addEventListener('click', () => {
+            analyzeModal.classList.add('hidden');
+        });
+    }
+
+    if (clearReport) {
+        clearReport.addEventListener('click', () => {
+            document.getElementById('report-input').value = '';
+            document.getElementById('analyze-result').classList.add('hidden');
+        });
+    }
+
+    if (runAnalyze) {
+        runAnalyze.addEventListener('click', () => {
+            const text = document.getElementById('report-input').value;
+            if (!text.trim()) {
+                alert('请输入报告内容');
+                return;
+            }
+            analyzeReport(text);
+        });
+    }
+}
+
+function analyzeReport(text) {
+    const summary = {
+        T: { code: null, reasons: [] },
+        N: { code: null, reasons: [] },
+        M: { code: null, reasons: [] }
+    };
+
+    // Helper to find matches for a category
+    const findMatches = (type, data) => {
+        let bestMatch = null;
+        let bestIndex = -1;
+        let reasons = [];
+
+        data.forEach((item, index) => {
+            let matched = false;
+            let matchReason = '';
+
+            // Check explicit code (case insensitive)
+            // Use word boundary to avoid partial matches (e.g. T1 matching T1a)
+            // But strict boundary might fail on "pT1a".
+            // Let's use a regex that allows optional prefix like p/c/y and boundary at end
+            const codeRegex = new RegExp(`(?:c|p|y)?${item.code}\\b`, 'i');
+            if (codeRegex.test(text)) {
+                matched = true;
+                matchReason = `匹配到明确分期: ${item.code}`;
+            }
+
+            // Check keywords
+            if (!matched && item.keywords) {
+                for (const kw of item.keywords) {
+                    try {
+                        const kwRegex = new RegExp(kw, 'i');
+                        if (kwRegex.test(text)) {
+                            matched = true;
+                            matchReason = `匹配到关键词: "${kw}"`;
+                            break;
+                        }
+                    } catch (e) {
+                        if (text.includes(kw)) {
+                            matched = true;
+                            matchReason = `匹配到关键词: "${kw}"`;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (matched) {
+                // If we found a match, check if it's "higher" than current best
+                if (index > bestIndex) {
+                    bestIndex = index;
+                    bestMatch = item.code;
+                }
+                reasons.push(`${item.code}: ${matchReason}`);
+            }
+        });
+
+        return { code: bestMatch, index: bestIndex, reasons };
+    };
+
+    // 1. Analyze T (Keywords + Size)
+    let tResult = findMatches('T', TNM_DATA_8TH.T);
+    
+    // Extract size in cm
+    const sizeRegex = /(\d+(?:\.\d+)?)\s*(cm|mm|厘米|毫米)/gi;
+    let maxCm = 0;
+    let match;
+    while ((match = sizeRegex.exec(text)) !== null) {
+        let val = parseFloat(match[1]);
+        const unit = match[2].toLowerCase();
+        if (unit === 'mm' || unit === '毫米') {
+            val = val / 10;
+        }
+        if (val > maxCm) maxCm = val;
+    }
+
+    if (maxCm > 0) {
+        let sizeCode = '';
+        if (maxCm <= 1) sizeCode = 'T1a';
+        else if (maxCm <= 2) sizeCode = 'T1b';
+        else if (maxCm <= 3) sizeCode = 'T1c';
+        else if (maxCm <= 4) sizeCode = 'T2a';
+        else if (maxCm <= 5) sizeCode = 'T2b';
+        else if (maxCm <= 7) sizeCode = 'T3';
+        else sizeCode = 'T4';
+
+        const sizeIndex = TNM_DATA_8TH.T.findIndex(item => item.code === sizeCode);
+        
+        tResult.reasons.push(`${sizeCode}: 基于肿瘤大小 ${maxCm}cm`);
+
+        if (sizeIndex > tResult.index) {
+            tResult.code = sizeCode;
+            tResult.index = sizeIndex;
+        }
+    }
+    summary.T = tResult;
+
+    // 2. Analyze N
+    summary.N = findMatches('N', TNM_DATA_8TH.N);
+
+    // 3. Analyze M
+    summary.M = findMatches('M', TNM_DATA_8TH.M);
+
+    // Defaults
+    if (!summary.T.code) summary.T.code = 'Tx';
+    if (!summary.N.code) summary.N.code = 'Nx'; // Default to Nx if unknown? Or N0? Usually N0 is default if not mentioned, but 'Nx' is safer for "Analyze".
+    // Actually, if report doesn't mention nodes, it's often Nx.
+    // However, existing app default is N0. Let's stick to Nx to show "I didn't find anything".
+    // Wait, if I set it to Nx, the stage calculation returns "无法评估". This might be annoying if the user just forgot to mention it.
+    // But for an analyzer, "Nx" is correct. The user can then manually change it to N0.
+    if (!summary.M.code) summary.M.code = 'Mx'; // Same for M.
+
+    // Update UI
+    selectOption('T', summary.T.code);
+    selectOption('N', summary.N.code);
+    selectOption('M', summary.M.code);
+
+    // Update Analysis Summary in Modal
+    const summaryEl = document.getElementById('analyze-summary');
+    const resultDiv = document.getElementById('analyze-result');
+    
+    let summaryText = ``;
+    summaryText += `<div style="margin-bottom:0.5rem"><strong>T分期: ${summary.T.code}</strong><br><span style="font-size:0.85em; color:#666">${summary.T.reasons.join('; ') || '未找到相关描述'}</span></div>`;
+    summaryText += `<div style="margin-bottom:0.5rem"><strong>N分期: ${summary.N.code}</strong><br><span style="font-size:0.85em; color:#666">${summary.N.reasons.join('; ') || '未找到相关描述'}</span></div>`;
+    summaryText += `<div><strong>M分期: ${summary.M.code}</strong><br><span style="font-size:0.85em; color:#666">${summary.M.reasons.join('; ') || '未找到相关描述'}</span></div>`;
+    
+    summaryEl.innerHTML = summaryText;
+    resultDiv.classList.remove('hidden');
+    
+    // Also update the main result immediately
+    updateResult();
 }
 
 function renderOptions(type, data, containerId) {

@@ -12,7 +12,10 @@
 <body>
     <header class="app-header">
         <h1>肺癌 TNM 分期助手 (第8版)</h1>
-        <button id="history-btn" class="icon-btn">📜</button>
+        <div class="header-actions">
+            <button id="analyze-btn" class="icon-btn">🔍</button>
+            <button id="history-btn" class="icon-btn">📜</button>
+        </div>
     </header>
 
     <main class="app-main">
@@ -62,6 +65,28 @@
                 <!-- History items -->
             </ul>
             <button id="clear-history" class="danger-btn">清空记录</button>
+        </div>
+    </div>
+
+    <!-- Analyze Modal -->
+    <div id="analyze-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>智能分析</h3>
+                <button id="close-analyze" class="close-btn">&times;</button>
+            </div>
+            <div class="analyze-body">
+                <p class="hint-text">请粘贴病理或影像学报告：</p>
+                <textarea id="report-input" placeholder="例如：右肺上叶恶性肿瘤，大小约3.5cm，无淋巴结转移..."></textarea>
+                <div class="analyze-result hidden" id="analyze-result">
+                    <h4>分析结果：</h4>
+                    <p id="analyze-summary"></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="clear-report" class="secondary-btn">清空</button>
+                <button id="run-analyze" class="primary-btn">开始分析</button>
+            </div>
         </div>
     </div>
 

@@ -204,6 +204,7 @@ body {
     padding: 1rem;
     display: flex;
     flex-direction: column;
+    overflow-y: auto;
 }
 
 .modal-header {
@@ -235,6 +236,54 @@ body {
 .history-date {
     font-size: 0.75rem;
     color: #9ca3af;
+}
+
+/* Analyze Modal Styles */
+.analyze-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.hint-text {
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+
+#report-input {
+    width: 100%;
+    height: 120px;
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.375rem;
+    font-family: inherit;
+    resize: none;
+    font-size: 0.95rem;
+}
+
+#report-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.analyze-result {
+    background: #eff6ff;
+    padding: 0.75rem;
+    border-radius: 0.375rem;
+    border: 1px solid #bfdbfe;
+    font-size: 0.9rem;
+}
+
+.analyze-result h4 {
+    margin-bottom: 0.5rem;
+    color: var(--primary-color);
+}
+
+.modal-footer {
+    display: flex;
+    gap: 0.5rem;
 }
 
 @media (min-width: 768px) {
