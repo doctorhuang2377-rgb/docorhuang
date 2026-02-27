@@ -212,6 +212,39 @@ async function runOcr(imageBlob) {
     });
 
     if (ocrStatus) ocrStatus.textContent = '加载语言包...';
+    try {
+        await worker.loadLanguage('chi_sim+eng');
+        await worker.initialize('chi_sim+eng');
+    } catch (e) {
+        // Retry without local core path if local load fails
+        if (ocrStatus) ocrStatus.textContent = '本地加载失败，尝试CDN...';
+        await worker.terminate();
+        return await runOcrFallback(imageBlob);
+    }
+
+    if (ocrStatus) ocrStatus.textContent = '正在识别文字...';
+    const { data: { text } } = await worker.recognize(imageBlob);
+    
+    await worker.terminate();
+    return text;
+}
+
+async function runOcrFallback(imageBlob) {
+    const ocrProgressFill = document.getElementById('ocr-progress-fill');
+    const ocrStatus = document.getElementById('ocr-status');
+
+    const worker = await Tesseract.createWorker({
+        logger: m => {
+            if (m.status === 'recognizing text') {
+                const pct = Math.floor(m.progress * 100);
+                if (ocrProgressFill) ocrProgressFill.style.width = `${pct}%`;
+                if (ocrStatus) ocrStatus.textContent = `识别中... ${pct}%`;
+            }
+        },
+        gzip: true
+    });
+
+    if (ocrStatus) ocrStatus.textContent = '加载语言包 (CDN)...';
     await worker.loadLanguage('chi_sim+eng');
     await worker.initialize('chi_sim+eng');
 
