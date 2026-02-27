@@ -253,7 +253,7 @@ async function runOcr(imageBlob) {
             corePath: basePath + 'lib/tesseract/tesseract-core.wasm.js',
             langPath: langPath,
             // cacheMethod: 'none', // Removed to allow caching
-            gzip: true
+            gzip: false
         });
 
         if (ocrStatus) ocrStatus.textContent = '加载本地语言包...';

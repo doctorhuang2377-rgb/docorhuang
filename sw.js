@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tnm-helper-v4';
+const CACHE_NAME = 'tnm-helper-v5';
 const ASSETS = [
     './',
     './index.html',
@@ -9,8 +9,9 @@ const ASSETS = [
     './lib/tesseract/tesseract.min.js',
     './lib/tesseract/tesseract-core.wasm.js',
     './lib/tesseract/worker.min.js',
-    './lib/tesseract/lang-data/chi_sim.traineddata.gz',
-    './lib/tesseract/lang-data/eng.traineddata.gz',
+    // Removed language packs from precache to avoid install timeout
+    // './lib/tesseract/lang-data/chi_sim.traineddata',
+    // './lib/tesseract/lang-data/eng.traineddata',
     './lib/pdfjs/pdf.min.js',
     './lib/pdfjs/pdf.worker.min.js'
 ];
