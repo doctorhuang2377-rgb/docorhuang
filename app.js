@@ -84,6 +84,30 @@ function initAnalyzeUI() {
 }
 
 function analyzeReport(text) {
+    const summary = parseReport(text);
+
+    // Update UI
+    selectOption('T', summary.T.code);
+    selectOption('N', summary.N.code);
+    selectOption('M', summary.M.code);
+
+    // Update Analysis Summary in Modal
+    const summaryEl = document.getElementById('analyze-summary');
+    const resultDiv = document.getElementById('analyze-result');
+    
+    let summaryText = ``;
+    summaryText += `<div style="margin-bottom:0.5rem"><strong>T分期: ${summary.T.code}</strong><br><span style="font-size:0.85em; color:#666">${summary.T.reasons.join('; ') || '未找到相关描述'}</span></div>`;
+    summaryText += `<div style="margin-bottom:0.5rem"><strong>N分期: ${summary.N.code}</strong><br><span style="font-size:0.85em; color:#666">${summary.N.reasons.join('; ') || '未找到相关描述'}</span></div>`;
+    summaryText += `<div><strong>M分期: ${summary.M.code}</strong><br><span style="font-size:0.85em; color:#666">${summary.M.reasons.join('; ') || '未找到相关描述'}</span></div>`;
+    
+    summaryEl.innerHTML = summaryText;
+    resultDiv.classList.remove('hidden');
+    
+    // Also update the main result immediately
+    updateResult();
+}
+
+function parseReport(text) {
     const summary = {
         T: { code: null, reasons: [] },
         N: { code: null, reasons: [] },
@@ -188,32 +212,10 @@ function analyzeReport(text) {
 
     // Defaults
     if (!summary.T.code) summary.T.code = 'Tx';
-    if (!summary.N.code) summary.N.code = 'Nx'; // Default to Nx if unknown? Or N0? Usually N0 is default if not mentioned, but 'Nx' is safer for "Analyze".
-    // Actually, if report doesn't mention nodes, it's often Nx.
-    // However, existing app default is N0. Let's stick to Nx to show "I didn't find anything".
-    // Wait, if I set it to Nx, the stage calculation returns "无法评估". This might be annoying if the user just forgot to mention it.
-    // But for an analyzer, "Nx" is correct. The user can then manually change it to N0.
-    if (!summary.M.code) summary.M.code = 'Mx'; // Same for M.
+    if (!summary.N.code) summary.N.code = 'Nx'; 
+    if (!summary.M.code) summary.M.code = 'Mx'; 
 
-    // Update UI
-    selectOption('T', summary.T.code);
-    selectOption('N', summary.N.code);
-    selectOption('M', summary.M.code);
-
-    // Update Analysis Summary in Modal
-    const summaryEl = document.getElementById('analyze-summary');
-    const resultDiv = document.getElementById('analyze-result');
-    
-    let summaryText = ``;
-    summaryText += `<div style="margin-bottom:0.5rem"><strong>T分期: ${summary.T.code}</strong><br><span style="font-size:0.85em; color:#666">${summary.T.reasons.join('; ') || '未找到相关描述'}</span></div>`;
-    summaryText += `<div style="margin-bottom:0.5rem"><strong>N分期: ${summary.N.code}</strong><br><span style="font-size:0.85em; color:#666">${summary.N.reasons.join('; ') || '未找到相关描述'}</span></div>`;
-    summaryText += `<div><strong>M分期: ${summary.M.code}</strong><br><span style="font-size:0.85em; color:#666">${summary.M.reasons.join('; ') || '未找到相关描述'}</span></div>`;
-    
-    summaryEl.innerHTML = summaryText;
-    resultDiv.classList.remove('hidden');
-    
-    // Also update the main result immediately
-    updateResult();
+    return summary;
 }
 
 function renderOptions(type, data, containerId) {

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>TNM Analysis Tests</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        .pass { color: green; }
+        .fail { color: red; font-weight: bold; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <h1>TNM Analysis Tests</h1>
+    <div id="results">Running tests...</div>
+
+    <!-- Mock UI Elements required by app.js -->
+    <div id="t-panel" class="hidden"></div>
+    <div id="n-panel" class="hidden"></div>
+    <div id="m-panel" class="hidden"></div>
+    <button id="save-btn" class="hidden"></button>
+    <button id="history-btn" class="hidden"></button>
+    <div id="history-modal" class="hidden"></div>
+    <button id="close-history" class="hidden"></button>
+    <button id="clear-history" class="hidden"></button>
+    <ul id="history-list" class="hidden"></ul>
+    <button id="copy-btn" class="hidden"></button>
+    <button id="analyze-btn" class="hidden"></button>
+    <div id="analyze-modal" class="hidden"></div>
+    <button id="close-analyze" class="hidden"></button>
+    <button id="clear-report" class="hidden"></button>
+    <input id="report-input" class="hidden">
+    <button id="run-analyze" class="hidden"></button>
+    <div id="analyze-result" class="hidden"></div>
+    <div id="analyze-summary" class="hidden"></div>
+    <span id="stage-result" class="hidden"></span>
+    <span id="tnm-combo" class="hidden"></span>
+    <span id="survival-rate" class="hidden"></span>
+    <div id="stage-desc" class="hidden"></div>
+    
+    <!-- Tab buttons -->
+    <button class="tab-btn" data-target="t-panel"></button>
+    <button class="tab-btn" data-target="n-panel"></button>
+    <button class="tab-btn" data-target="m-panel"></button>
+
+    <!-- Load Scripts -->
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+    
+    <!-- Test Suite -->
+    <script>
+        // Wait for app to init
+        window.addEventListener('load', () => {
+            runTests();
+        });
+
+        function runTests() {
+            const tests = [
+                {
+                    name: "Explicit T2a N0 M0",
+                    input: "右肺上叶恶性肿瘤，T2a N0 M0",
+                    expected: { T: 'T2a', N: 'N0', M: 'M0' }
+                },
+                {
+                    name: "Size 3.5cm (T2a)",
+                    input: "肿瘤大小约 3.5cm，无淋巴结转移",
+                    expected: { T: 'T2a', N: 'N0', M: 'Mx' } // No M mentioned -> Mx
+                },
+                {
+                    name: "Keywords: Chest wall invasion (T3)",
+                    input: "肿瘤侵犯胸壁",
+                    expected: { T: 'T3', N: 'Nx', M: 'Mx' }
+                },
+                {
+                    name: "Keywords: Brain metastasis (M1b)",
+                    input: "伴有脑转移",
+                    expected: { T: 'Tx', N: 'Nx', M: 'M1b' }
+                },
+                {
+                    name: "Complex: Size 1.5cm (T1b) + N2 (Mediastinal nodes)",
+                    input: "肿瘤1.5cm，同侧纵隔淋巴结肿大",
+                    expected: { T: 'T1b', N: 'N2', M: 'Mx' }
+                },
+                {
+                    name: "Conflict: Size 2cm (T1b) but explicit T2a -> Should pick explicit?",
+                    // Current logic picks "best match" index. 
+                    // T1b index is 4. T2a index is 6.
+                    // If both present, it picks the one with higher index?
+                    // Let's check logic: findMatches keeps bestIndex. 
+                    // If size logic finds match, it compares sizeIndex with bestIndex.
+                    input: "大小2cm，考虑T2a",
+                    expected: { T: 'T2a', N: 'Nx', M: 'Mx' }
+                },
+                {
+                    name: "Conflict: Explicit T1a but Size 5cm (T2b) -> Should pick T2b?",
+                    // T1a index is 3. T2b index is 7.
+                    // Logic should pick T2b.
+                    input: "T1a，但大小测量为5cm",
+                    expected: { T: 'T2b', N: 'Nx', M: 'Mx' } 
+                },
+                {
+                    name: "Distinguish T4 (Direct Invasion) vs M1b (Metastasis)",
+                    input: "肿瘤侵犯椎体，无远处转移",
+                    expected: { T: 'T4', N: 'Nx', M: 'M0' }
+                },
+                {
+                    name: "Distinguish M1b (Vertebral Metastasis)",
+                    input: "伴有椎体转移",
+                    expected: { T: 'Tx', N: 'Nx', M: 'M1b' }
+                }
+            ];
+
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+            
+            let passed = 0;
+            let failed = 0;
+
+            tests.forEach((test, index) => {
+                try {
+                    const result = parseReport(test.input);
+                    
+                    const tMatch = result.T.code === test.expected.T;
+                    const nMatch = result.N.code === test.expected.N;
+                    const mMatch = result.M.code === test.expected.M;
+                    
+                    if (tMatch && nMatch && mMatch) {
+                        passed++;
+                        logResult(true, test.name, "");
+                    } else {
+                        failed++;
+                        const actual = `${result.T.code} ${result.N.code} ${result.M.code}`;
+                        const expect = `${test.expected.T} ${test.expected.N} ${test.expected.M}`;
+                        logResult(false, test.name, `Expected: ${expect}, Got: ${actual}`);
+                        console.log(result.T.reasons);
+                    }
+                } catch (e) {
+                    failed++;
+                    logResult(false, test.name, `Exception: ${e.message}`);
+                }
+            });
+
+            const summary = document.createElement('div');
+            summary.innerHTML = `<br><strong>Total: ${tests.length}, Passed: ${passed}, Failed: ${failed}</strong>`;
+            resultsDiv.appendChild(summary);
+        }
+
+        function logResult(isPass, name, details) {
+            const div = document.createElement('div');
+            div.className = isPass ? 'pass' : 'fail';
+            div.innerText = `[${isPass ? 'PASS' : 'FAIL'}] ${name} ${details ? '- ' + details : ''}`;
+            document.getElementById('results').appendChild(div);
+        }
+    </script>
+</body>
+</html>
