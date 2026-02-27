@@ -9,7 +9,9 @@ const ASSETS = [
     './lib/tesseract/tesseract.min.js',
     './lib/tesseract/tesseract-core.wasm.js',
     './lib/tesseract/lang-data/chi_sim.traineddata.gz',
-    './lib/tesseract/lang-data/eng.traineddata.gz'
+    './lib/tesseract/lang-data/eng.traineddata.gz',
+    './lib/pdfjs/pdf.min.js',
+    './lib/pdfjs/pdf.worker.min.js'
 ];
 
 self.addEventListener('install', (e) => {

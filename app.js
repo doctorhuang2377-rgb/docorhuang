@@ -91,45 +91,33 @@ function initAnalyzeUI() {
             // Reset UI
             ocrProgressContainer.classList.remove('hidden');
             ocrProgressFill.style.width = '0%';
-            ocrStatus.textContent = '正在初始化 OCR 引擎...';
+            ocrStatus.textContent = '正在初始化...';
             uploadBtn.disabled = true;
 
             try {
-                // Initialize worker
-                const worker = await Tesseract.createWorker({
-                    logger: m => {
-                        if (m.status === 'recognizing text') {
-                            const pct = Math.floor(m.progress * 100);
-                            ocrProgressFill.style.width = `${pct}%`;
-                            ocrStatus.textContent = `识别中... ${pct}%`;
-                        }
-                    },
-                    // Use local lang data if possible, or fallback to CDN
-                    langPath: './lib/tesseract/lang-data',
-                    gzip: true
-                });
+                let text = '';
 
-                // Load language
-                ocrStatus.textContent = '加载语言包 (可能需要一些时间)...';
-                await worker.loadLanguage('chi_sim+eng');
-                await worker.initialize('chi_sim+eng');
-
-                // Recognize
-                ocrStatus.textContent = '正在识别文字...';
-                const { data: { text } } = await worker.recognize(file);
-                
-                // Done
-                await worker.terminate();
+                if (file.type === 'application/pdf') {
+                    ocrStatus.textContent = '正在解析 PDF...';
+                    text = await handlePdf(file);
+                } else {
+                    // Image preprocessing
+                    ocrStatus.textContent = '正在优化图像...';
+                    const processedImage = await preprocessImage(file);
+                    
+                    ocrStatus.textContent = '正在初始化 OCR 引擎...';
+                    text = await runOcr(processedImage);
+                }
                 
                 // Append text
                 const currentText = reportInput.value;
                 reportInput.value = (currentText ? currentText + '\n\n' : '') + text;
                 
-                // Trigger analysis automatically? Or let user check first?
-                // Let's analyze automatically for convenience
+                // Trigger analysis
                 analyzeReport(reportInput.value);
 
                 ocrStatus.textContent = '识别完成！';
+                ocrProgressFill.style.width = '100%';
                 setTimeout(() => {
                     ocrProgressContainer.classList.add('hidden');
                     uploadBtn.disabled = false;
@@ -153,6 +141,134 @@ function initAnalyzeUI() {
             analyzeReport(text);
         });
     }
+}
+
+async function preprocessImage(file) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+
+            // Get image data
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imgData.data;
+
+            // Grayscale & Contrast
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+                // Grayscale
+                let gray = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+                
+                // Increase contrast
+                // Simple thresholding (Binarization)
+                // You can adjust threshold (e.g. 128)
+                // Or use dynamic thresholding. For now, simple contrast stretching.
+                // Let's do simple binarization for clearer text if it's document
+                // But for photos, adaptive is better. Tesseract has internal binarization.
+                // So let's just do grayscale and slight contrast boost.
+                
+                // Contrast factor
+                const factor = 1.2; 
+                gray = (gray - 128) * factor + 128;
+                
+                // Clamp
+                gray = Math.max(0, Math.min(255, gray));
+
+                data[i] = data[i + 1] = data[i + 2] = gray;
+            }
+
+            ctx.putImageData(imgData, 0, 0);
+            
+            // Return blob
+            canvas.toBlob(resolve, 'image/png');
+        };
+        img.onerror = reject;
+        img.src = URL.createObjectURL(file);
+    });
+}
+
+async function runOcr(imageBlob) {
+    const ocrProgressFill = document.getElementById('ocr-progress-fill');
+    const ocrStatus = document.getElementById('ocr-status');
+
+    const worker = await Tesseract.createWorker({
+        logger: m => {
+            if (m.status === 'recognizing text') {
+                const pct = Math.floor(m.progress * 100);
+                if (ocrProgressFill) ocrProgressFill.style.width = `${pct}%`;
+                if (ocrStatus) ocrStatus.textContent = `识别中... ${pct}%`;
+            }
+        },
+        langPath: './lib/tesseract/lang-data',
+        gzip: true
+    });
+
+    if (ocrStatus) ocrStatus.textContent = '加载语言包...';
+    await worker.loadLanguage('chi_sim+eng');
+    await worker.initialize('chi_sim+eng');
+
+    if (ocrStatus) ocrStatus.textContent = '正在识别文字...';
+    const { data: { text } } = await worker.recognize(imageBlob);
+    
+    await worker.terminate();
+    return text;
+}
+
+async function handlePdf(file) {
+    // Configure PDF.js worker
+    pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/pdfjs/pdf.worker.min.js';
+
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+    let fullText = '';
+
+    const ocrProgressFill = document.getElementById('ocr-progress-fill');
+    const ocrStatus = document.getElementById('ocr-status');
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+        if (ocrStatus) ocrStatus.textContent = `正在处理第 ${i}/${pdf.numPages} 页...`;
+        const pct = Math.floor((i / pdf.numPages) * 100);
+        if (ocrProgressFill) ocrProgressFill.style.width = `${pct}%`;
+
+        const page = await pdf.getPage(i);
+        
+        // 1. Try extracting text content
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map(item => item.str).join(' ');
+
+        if (pageText.trim().length > 50) {
+            // Assume it's a text-based PDF
+            fullText += pageText + '\n\n';
+        } else {
+            // 2. Fallback to OCR (scanned PDF)
+            if (ocrStatus) ocrStatus.textContent = `第 ${i} 页为扫描件，正在进行 OCR...`;
+            
+            const viewport = page.getViewport({ scale: 2.0 }); // High scale for better OCR
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+
+            await page.render({ canvasContext: context, viewport: viewport }).promise;
+            
+            // Convert canvas to blob and run OCR
+            const blob = await new Promise(r => canvas.toBlob(r));
+            // Note: Reuse runOcr might create new worker every page, which is slow.
+            // For simplicity in this iteration, we accept it. 
+            // Optimally we should reuse worker. But runOcr creates/terminates.
+            // Let's just call runOcr.
+            const ocrText = await runOcr(blob);
+            fullText += ocrText + '\n\n';
+        }
+    }
+
+    return fullText;
 }
 
 function analyzeReport(text) {

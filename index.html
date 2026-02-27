@@ -76,10 +76,10 @@
                 <button id="close-analyze" class="close-btn">&times;</button>
             </div>
             <div class="analyze-body">
-                <p class="hint-text">请粘贴病理或影像学报告，或上传图片：</p>
+                <p class="hint-text">请粘贴病理或影像学报告，或上传图片/PDF：</p>
                 <div class="upload-area">
-                    <input type="file" id="ocr-upload" accept="image/*" style="display: none;">
-                    <button id="upload-btn" class="secondary-btn" style="width:100%; margin-bottom:0.5rem;">📸 上传/拍摄图片识别</button>
+                    <input type="file" id="ocr-upload" accept="image/jpeg,image/png,image/webp,image/bmp,application/pdf" style="display: none;">
+                    <button id="upload-btn" class="secondary-btn" style="width:100%; margin-bottom:0.5rem;">📸 上传/拍摄图片或PDF识别</button>
                     <div id="ocr-progress-container" class="hidden">
                         <div class="progress-bar"><div id="ocr-progress-fill"></div></div>
                         <span id="ocr-status" class="status-text">正在初始化...</span>
@@ -98,6 +98,7 @@
         </div>
     </div>
 
+    <script src="./lib/pdfjs/pdf.min.js"></script>
     <script src="./lib/tesseract/tesseract.min.js"></script>
     <script src="./data.js"></script>
     <script src="./app.js"></script>
