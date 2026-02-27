@@ -193,12 +193,34 @@ async function preprocessImage(file) {
     });
 }
 
+/**
+ * Timeout helper function
+ * @param {Promise} promise - The promise to wait for
+ * @param {number} ms - Timeout in milliseconds
+ * @param {string} msg - Error message
+ */
+function withTimeout(promise, ms, msg) {
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+            reject(new Error(msg || 'Operation timed out'));
+        }, ms);
+
+        promise.then(res => {
+            clearTimeout(timer);
+            resolve(res);
+        }).catch(err => {
+            clearTimeout(timer);
+            reject(err);
+        });
+    });
+}
+
 async function runOcr(imageBlob) {
     const ocrProgressFill = document.getElementById('ocr-progress-fill');
     const ocrStatus = document.getElementById('ocr-status');
 
     try {
-        if (ocrStatus) ocrStatus.textContent = '正在初始化本地引擎...';
+        if (ocrStatus) ocrStatus.textContent = '正在初始化本地引擎 (超时: 10s)...';
         
         // Attempt 1: Fully Local
         const worker = await Tesseract.createWorker({
@@ -212,12 +234,24 @@ async function runOcr(imageBlob) {
             workerPath: './lib/tesseract/worker.min.js',
             corePath: './lib/tesseract/tesseract-core.wasm.js',
             langPath: './lib/tesseract/lang-data',
+            cacheMethod: 'none', // Force local, don't verify online
             gzip: true
         });
 
         if (ocrStatus) ocrStatus.textContent = '加载本地语言包...';
-        await worker.loadLanguage('chi_sim+eng');
-        await worker.initialize('chi_sim+eng');
+        
+        // Timeout for loadLanguage and initialize
+        await withTimeout(
+            worker.loadLanguage('chi_sim+eng'), 
+            10000, 
+            '本地语言包加载超时'
+        );
+        
+        await withTimeout(
+            worker.initialize('chi_sim+eng'), 
+            10000, 
+            '本地引擎初始化超时'
+        );
 
         if (ocrStatus) ocrStatus.textContent = '正在识别文字...';
         const { data: { text } } = await worker.recognize(imageBlob);
@@ -227,7 +261,7 @@ async function runOcr(imageBlob) {
 
     } catch (e) {
         console.error('Local OCR failed:', e);
-        if (ocrStatus) ocrStatus.textContent = `本地引擎失败，切换在线模式...`;
+        if (ocrStatus) ocrStatus.textContent = `本地失败 (${e.message})，切换在线模式...`;
         return await runOcrFallback(imageBlob);
     }
 }
@@ -248,9 +282,19 @@ async function runOcrFallback(imageBlob) {
             }
         });
 
-        if (ocrStatus) ocrStatus.textContent = '下载在线语言包...';
-        await worker.loadLanguage('chi_sim+eng');
-        await worker.initialize('chi_sim+eng');
+        if (ocrStatus) ocrStatus.textContent = '下载在线语言包 (超时: 30s)...';
+        
+        await withTimeout(
+            worker.loadLanguage('chi_sim+eng'), 
+            30000, 
+            '在线语言包下载超时'
+        );
+        
+        await withTimeout(
+            worker.initialize('chi_sim+eng'), 
+            30000, 
+            '在线引擎初始化超时'
+        );
 
         if (ocrStatus) ocrStatus.textContent = '正在识别文字...';
         const { data: { text } } = await worker.recognize(imageBlob);
@@ -259,7 +303,8 @@ async function runOcrFallback(imageBlob) {
         return text;
     } catch (e) {
         console.error('CDN OCR failed:', e);
-        throw new Error(`OCR 初始化失败: ${e.message || '未知错误'}`);
+        // Reset UI if totally failed
+        throw new Error(`OCR 最终失败: ${e.message}`);
     }
 }
 
