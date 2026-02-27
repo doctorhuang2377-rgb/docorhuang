@@ -1,11 +1,15 @@
-const CACHE_NAME = 'tnm-helper-v2';
+const CACHE_NAME = 'tnm-helper-v3';
 const ASSETS = [
     './',
     './index.html',
     './styles.css',
     './app.js',
     './data.js',
-    './manifest.json'
+    './manifest.json',
+    './lib/tesseract/tesseract.min.js',
+    './lib/tesseract/tesseract-core.wasm.js',
+    './lib/tesseract/lang-data/chi_sim.traineddata.gz',
+    './lib/tesseract/lang-data/eng.traineddata.gz'
 ];
 
 self.addEventListener('install', (e) => {

@@ -71,6 +71,78 @@ function initAnalyzeUI() {
         });
     }
 
+    // OCR Logic
+    const uploadBtn = document.getElementById('upload-btn');
+    const ocrUpload = document.getElementById('ocr-upload');
+    const ocrProgressContainer = document.getElementById('ocr-progress-container');
+    const ocrProgressFill = document.getElementById('ocr-progress-fill');
+    const ocrStatus = document.getElementById('ocr-status');
+    const reportInput = document.getElementById('report-input');
+
+    if (uploadBtn && ocrUpload) {
+        uploadBtn.addEventListener('click', () => {
+            ocrUpload.click();
+        });
+
+        ocrUpload.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // Reset UI
+            ocrProgressContainer.classList.remove('hidden');
+            ocrProgressFill.style.width = '0%';
+            ocrStatus.textContent = '正在初始化 OCR 引擎...';
+            uploadBtn.disabled = true;
+
+            try {
+                // Initialize worker
+                const worker = await Tesseract.createWorker({
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            const pct = Math.floor(m.progress * 100);
+                            ocrProgressFill.style.width = `${pct}%`;
+                            ocrStatus.textContent = `识别中... ${pct}%`;
+                        }
+                    },
+                    // Use local lang data if possible, or fallback to CDN
+                    langPath: './lib/tesseract/lang-data',
+                    gzip: true
+                });
+
+                // Load language
+                ocrStatus.textContent = '加载语言包 (可能需要一些时间)...';
+                await worker.loadLanguage('chi_sim+eng');
+                await worker.initialize('chi_sim+eng');
+
+                // Recognize
+                ocrStatus.textContent = '正在识别文字...';
+                const { data: { text } } = await worker.recognize(file);
+                
+                // Done
+                await worker.terminate();
+                
+                // Append text
+                const currentText = reportInput.value;
+                reportInput.value = (currentText ? currentText + '\n\n' : '') + text;
+                
+                // Trigger analysis automatically? Or let user check first?
+                // Let's analyze automatically for convenience
+                analyzeReport(reportInput.value);
+
+                ocrStatus.textContent = '识别完成！';
+                setTimeout(() => {
+                    ocrProgressContainer.classList.add('hidden');
+                    uploadBtn.disabled = false;
+                }, 2000);
+
+            } catch (err) {
+                console.error(err);
+                ocrStatus.textContent = '识别失败: ' + err.message;
+                uploadBtn.disabled = false;
+            }
+        });
+    }
+
     if (runAnalyze) {
         runAnalyze.addEventListener('click', () => {
             const text = document.getElementById('report-input').value;
