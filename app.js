@@ -220,11 +220,22 @@ async function runOcr(imageBlob) {
     const ocrStatus = document.getElementById('ocr-status');
 
     try {
-        if (ocrStatus) ocrStatus.textContent = '正在初始化本地引擎 (超时: 10s)...';
+        if (ocrStatus) ocrStatus.textContent = '正在初始化本地引擎 (超时: 20s)...';
         
+        // Construct absolute path for langPath
+        // This handles cases where the app is served from a subdirectory
+        const basePath = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
+        const langPath = basePath + 'lib/tesseract/lang-data/';
+
+        console.log('Tesseract Init:', {
+            basePath,
+            langPath
+        });
+
         // Attempt 1: Fully Local
         const worker = await Tesseract.createWorker({
             logger: m => {
+                console.log('Tesseract Log:', m);
                 if (m.status === 'recognizing text') {
                     const pct = Math.floor(m.progress * 100);
                     if (ocrProgressFill) ocrProgressFill.style.width = `${pct}%`;
@@ -233,8 +244,8 @@ async function runOcr(imageBlob) {
             },
             workerPath: './lib/tesseract/worker.min.js',
             corePath: './lib/tesseract/tesseract-core.wasm.js',
-            langPath: './lib/tesseract/lang-data/',
-            cacheMethod: 'none', // Force local, don't verify online
+            langPath: langPath,
+            // cacheMethod: 'none', // Removed to allow caching
             gzip: true
         });
 
@@ -243,13 +254,13 @@ async function runOcr(imageBlob) {
         // Timeout for loadLanguage and initialize
         await withTimeout(
             worker.loadLanguage('chi_sim+eng'), 
-            10000, 
+            20000, 
             '本地语言包加载超时'
         );
         
         await withTimeout(
             worker.initialize('chi_sim+eng'), 
-            10000, 
+            20000, 
             '本地引擎初始化超时'
         );
 
