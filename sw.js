@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tnm-helper-v3';
+const CACHE_NAME = 'tnm-helper-v4';
 const ASSETS = [
     './',
     './index.html',

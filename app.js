@@ -233,7 +233,7 @@ async function runOcr(imageBlob) {
             },
             workerPath: './lib/tesseract/worker.min.js',
             corePath: './lib/tesseract/tesseract-core.wasm.js',
-            langPath: './lib/tesseract/lang-data',
+            langPath: './lib/tesseract/lang-data/',
             cacheMethod: 'none', // Force local, don't verify online
             gzip: true
         });
