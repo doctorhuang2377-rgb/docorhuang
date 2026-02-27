@@ -197,62 +197,70 @@ async function runOcr(imageBlob) {
     const ocrProgressFill = document.getElementById('ocr-progress-fill');
     const ocrStatus = document.getElementById('ocr-status');
 
-    const worker = await Tesseract.createWorker({
-        logger: m => {
-            if (m.status === 'recognizing text') {
-                const pct = Math.floor(m.progress * 100);
-                if (ocrProgressFill) ocrProgressFill.style.width = `${pct}%`;
-                if (ocrStatus) ocrStatus.textContent = `识别中... ${pct}%`;
-            }
-        },
-        workerPath: './lib/tesseract/worker.min.js',
-        corePath: './lib/tesseract/tesseract-core.wasm.js',
-        langPath: './lib/tesseract/lang-data',
-        gzip: true
-    });
-
-    if (ocrStatus) ocrStatus.textContent = '加载语言包...';
     try {
+        if (ocrStatus) ocrStatus.textContent = '正在初始化本地引擎...';
+        
+        // Attempt 1: Fully Local
+        const worker = await Tesseract.createWorker({
+            logger: m => {
+                if (m.status === 'recognizing text') {
+                    const pct = Math.floor(m.progress * 100);
+                    if (ocrProgressFill) ocrProgressFill.style.width = `${pct}%`;
+                    if (ocrStatus) ocrStatus.textContent = `识别中... ${pct}%`;
+                }
+            },
+            workerPath: './lib/tesseract/worker.min.js',
+            corePath: './lib/tesseract/tesseract-core.wasm.js',
+            langPath: './lib/tesseract/lang-data',
+            gzip: true
+        });
+
+        if (ocrStatus) ocrStatus.textContent = '加载本地语言包...';
         await worker.loadLanguage('chi_sim+eng');
         await worker.initialize('chi_sim+eng');
-    } catch (e) {
-        // Retry without local core path if local load fails
-        if (ocrStatus) ocrStatus.textContent = '本地加载失败，尝试CDN...';
+
+        if (ocrStatus) ocrStatus.textContent = '正在识别文字...';
+        const { data: { text } } = await worker.recognize(imageBlob);
+        
         await worker.terminate();
+        return text;
+
+    } catch (e) {
+        console.error('Local OCR failed:', e);
+        if (ocrStatus) ocrStatus.textContent = `本地引擎失败，切换在线模式...`;
         return await runOcrFallback(imageBlob);
     }
-
-    if (ocrStatus) ocrStatus.textContent = '正在识别文字...';
-    const { data: { text } } = await worker.recognize(imageBlob);
-    
-    await worker.terminate();
-    return text;
 }
 
 async function runOcrFallback(imageBlob) {
     const ocrProgressFill = document.getElementById('ocr-progress-fill');
     const ocrStatus = document.getElementById('ocr-status');
 
-    const worker = await Tesseract.createWorker({
-        logger: m => {
-            if (m.status === 'recognizing text') {
-                const pct = Math.floor(m.progress * 100);
-                if (ocrProgressFill) ocrProgressFill.style.width = `${pct}%`;
-                if (ocrStatus) ocrStatus.textContent = `识别中... ${pct}%`;
+    try {
+        // Attempt 2: CDN / Default
+        const worker = await Tesseract.createWorker({
+            logger: m => {
+                if (m.status === 'recognizing text') {
+                    const pct = Math.floor(m.progress * 100);
+                    if (ocrProgressFill) ocrProgressFill.style.width = `${pct}%`;
+                    if (ocrStatus) ocrStatus.textContent = `在线识别中... ${pct}%`;
+                }
             }
-        },
-        gzip: true
-    });
+        });
 
-    if (ocrStatus) ocrStatus.textContent = '加载语言包 (CDN)...';
-    await worker.loadLanguage('chi_sim+eng');
-    await worker.initialize('chi_sim+eng');
+        if (ocrStatus) ocrStatus.textContent = '下载在线语言包...';
+        await worker.loadLanguage('chi_sim+eng');
+        await worker.initialize('chi_sim+eng');
 
-    if (ocrStatus) ocrStatus.textContent = '正在识别文字...';
-    const { data: { text } } = await worker.recognize(imageBlob);
-    
-    await worker.terminate();
-    return text;
+        if (ocrStatus) ocrStatus.textContent = '正在识别文字...';
+        const { data: { text } } = await worker.recognize(imageBlob);
+        
+        await worker.terminate();
+        return text;
+    } catch (e) {
+        console.error('CDN OCR failed:', e);
+        throw new Error(`OCR 初始化失败: ${e.message || '未知错误'}`);
+    }
 }
 
 async function handlePdf(file) {
