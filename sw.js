@@ -8,6 +8,7 @@ const ASSETS = [
     './manifest.json',
     './lib/tesseract/tesseract.min.js',
     './lib/tesseract/tesseract-core.wasm.js',
+    './lib/tesseract/worker.min.js',
     './lib/tesseract/lang-data/chi_sim.traineddata.gz',
     './lib/tesseract/lang-data/eng.traineddata.gz',
     './lib/pdfjs/pdf.min.js',

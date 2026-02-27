@@ -205,6 +205,8 @@ async function runOcr(imageBlob) {
                 if (ocrStatus) ocrStatus.textContent = `识别中... ${pct}%`;
             }
         },
+        workerPath: './lib/tesseract/worker.min.js',
+        corePath: './lib/tesseract/tesseract-core.wasm.js',
         langPath: './lib/tesseract/lang-data',
         gzip: true
     });
