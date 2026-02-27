@@ -47,6 +47,7 @@ function initUI() {
 
 function initAnalyzeUI() {
     const analyzeBtn = document.getElementById('analyze-btn');
+    const ocrHeaderBtn = document.getElementById('ocr-header-btn');
     const analyzeModal = document.getElementById('analyze-modal');
     const closeAnalyze = document.getElementById('close-analyze');
     const clearReport = document.getElementById('clear-report');
@@ -54,6 +55,12 @@ function initAnalyzeUI() {
 
     if (analyzeBtn) {
         analyzeBtn.addEventListener('click', () => {
+            analyzeModal.classList.remove('hidden');
+        });
+    }
+
+    if (ocrHeaderBtn) {
+        ocrHeaderBtn.addEventListener('click', () => {
             analyzeModal.classList.remove('hidden');
         });
     }
