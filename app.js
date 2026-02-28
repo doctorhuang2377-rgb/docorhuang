@@ -107,6 +107,12 @@ function initAnalyzeUI() {
                 if (file.type === 'application/pdf') {
                     ocrStatus.textContent = '正在解析 PDF...';
                     text = await handlePdf(file);
+                } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+                    ocrStatus.textContent = '正在解析 Word 文档...';
+                    text = await handleWord(file);
+                } else if (file.type === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') {
+                    ocrStatus.textContent = '正在解析 PPT 幻灯片...';
+                    text = await handlePpt(file);
                 } else {
                     // Image preprocessing
                     ocrStatus.textContent = '正在优化图像...';
@@ -164,33 +170,54 @@ async function preprocessImage(file) {
             const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const data = imgData.data;
 
-            // Grayscale & Contrast
-            for (let i = 0; i < data.length; i += 4) {
-                const r = data[i];
-                const g = data[i + 1];
-                const b = data[i + 2];
-                // Grayscale
-                let gray = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-                
-                // Increase contrast
-                // Simple thresholding (Binarization)
-                // You can adjust threshold (e.g. 128)
-                // Or use dynamic thresholding. For now, simple contrast stretching.
-                // Let's do simple binarization for clearer text if it's document
-                // But for photos, adaptive is better. Tesseract has internal binarization.
-                // So let's just do grayscale and slight contrast boost.
-                
-                // Contrast factor
-                const factor = 1.2; 
-                gray = (gray - 128) * factor + 128;
-                
-                // Clamp
-                gray = Math.max(0, Math.min(255, gray));
+            // 2. Adaptive Thresholding (Bernsen's method or similar local thresholding)
+    // Simple global thresholding is bad for uneven lighting.
+    // Let's implement a simple local mean thresholding.
+    const width = canvas.width;
+    const height = canvas.height;
+    const outputData = new Uint8ClampedArray(data);
+    
+    // Window size for local threshold (e.g., 15x15)
+    // Optimization: Integral Image (Summed Area Table) for O(1) mean calculation
+    // But for simplicity in JS without libraries, let's use a simpler approach or single pass.
+    
+    // Approach: Block processing
+    // Calculate local mean for blocks.
+    // Or even simpler: High-pass filter (Sharpening) + Global Otsu
+    
+    // Let's stick to the "Contrast Factor" approach but make it smarter.
+    // 1. Convert to Grayscale
+    // 2. Histogram Equalization (Simple Contrast Stretching)
+    
+    let min = 255, max = 0;
+    for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        const gray = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        outputData[i] = outputData[i+1] = outputData[i+2] = gray;
+        if (gray < min) min = gray;
+        if (gray > max) max = gray;
+    }
 
-                data[i] = data[i + 1] = data[i + 2] = gray;
-            }
+    // Contrast Stretching
+    const range = max - min;
+    if (range > 0) {
+        for (let i = 0; i < data.length; i += 4) {
+            let gray = outputData[i];
+            gray = ((gray - min) / range) * 255;
+            // Binarization with fixed threshold after stretching usually works okay for docs
+            // Threshold = 128? Or Otsu? 
+            // Let's use a slightly higher threshold to remove background noise
+            gray = gray > 140 ? 255 : 0; 
+            data[i] = data[i+1] = data[i+2] = gray;
+        }
+    }
 
-            ctx.putImageData(imgData, 0, 0);
+    // 3. Denoise (Median Filter 3x3) - Optional, expensive in JS loop
+    // Skipping for performance unless needed.
+
+    ctx.putImageData(imgData, 0, 0);
             
             // Return blob
             canvas.toBlob(resolve, 'image/png');
@@ -265,9 +292,22 @@ async function runOcr(imageBlob) {
             '本地引擎初始化超时'
         );
 
+        // Optimize Parameters
+        await worker.setParameters({
+            tessedit_pageseg_mode: Tesseract.PSM.AUTO,
+            tessedit_char_whitelist: '0123456789.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ一二三四五六七八九十百千万大小左中右上下肺叶段门支气管纵隔淋巴结癌瘤肿转移浸润侵犯胸膜心包积液TNM', // Whitelist common med terms
+        });
+
         if (ocrStatus) ocrStatus.textContent = '正在识别文字...';
-        const { data: { text } } = await worker.recognize(imageBlob);
+        let { data: { text } } = await worker.recognize(imageBlob);
         
+        // Post-processing Correction
+        text = text.replace(/Tla/gi, 'T1a').replace(/TIa/gi, 'T1a')
+                   .replace(/Tlb/gi, 'T1b').replace(/TIb/gi, 'T1b')
+                   .replace(/Tlc/gi, 'T1c').replace(/TIc/gi, 'T1c')
+                   .replace(/NZ/gi, 'N2').replace(/NO/gi, 'N0') // O vs 0
+                   .replace(/MO/gi, 'M0');
+
         await worker.terminate();
         return text;
 
@@ -311,6 +351,59 @@ async function runOcrFallback(imageBlob) {
         console.error('CDN OCR failed:', e);
         // Reset UI if totally failed
         throw new Error(`OCR 最终失败: ${e.message}`);
+    }
+}
+
+async function handleWord(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            mammoth.extractRawText({arrayBuffer: event.target.result})
+                .then(function(result){
+                    resolve(result.value);
+                })
+                .catch(function(err){
+                    reject(new Error("Word 解析失败: " + err.message));
+                });
+        };
+        reader.onerror = function() {
+            reject(new Error("文件读取失败"));
+        };
+        reader.readAsArrayBuffer(file);
+    });
+}
+
+async function handlePpt(file) {
+    try {
+        const zip = await JSZip.loadAsync(file);
+        let fullText = '';
+        
+        // Find all slide XML files
+        const slideFiles = Object.keys(zip.files).filter(name => 
+            name.startsWith('ppt/slides/slide') && name.endsWith('.xml')
+        );
+        
+        // Sort slides by number (slide1, slide2, ...)
+        slideFiles.sort((a, b) => {
+            const numA = parseInt(a.match(/slide(\d+)\.xml/)[1]);
+            const numB = parseInt(b.match(/slide(\d+)\.xml/)[1]);
+            return numA - numB;
+        });
+
+        for (const slideName of slideFiles) {
+            const content = await zip.file(slideName).async('string');
+            // Simple regex to extract text from <a:t> tags
+            const textMatches = content.match(/<a:t>([^<]*)<\/a:t>/g);
+            if (textMatches) {
+                const slideText = textMatches.map(t => t.replace(/<\/?a:t>/g, '')).join(' ');
+                fullText += `[幻灯片 ${slideName}] ${slideText}\n\n`;
+            }
+        }
+        
+        if (!fullText) return "未在 PPT 中找到文本内容";
+        return fullText;
+    } catch (e) {
+        throw new Error("PPT 解析失败: " + e.message);
     }
 }
 
