@@ -45,6 +45,75 @@ function initUI() {
     initAnalyzeUI();
 }
 
+let calculatorSelection = { T: 'T1a', N: 'N0', M: 'M0' };
+
+function initCalculator(initialData) {
+    calculatorSelection = { ...initialData };
+    
+    // Render Options in Calculator
+    renderCalculatorOptions('T', TNM_DATA_8TH.T, 'calc-t-panel');
+    renderCalculatorOptions('N', TNM_DATA_8TH.N, 'calc-n-panel');
+    renderCalculatorOptions('M', TNM_DATA_8TH.M, 'calc-m-panel');
+
+    // Tab Switching in Calculator
+    document.querySelectorAll('.calc-tab-btn').forEach(btn => {
+        btn.onclick = (e) => {
+            document.querySelectorAll('.calc-tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.calc-tab-panel').forEach(p => p.classList.remove('active'));
+            e.target.classList.add('active');
+            document.getElementById(e.target.dataset.target).classList.add('active');
+        };
+    });
+
+    updateCalculatorResult();
+}
+
+function renderCalculatorOptions(type, data, containerId) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+    
+    data.forEach(item => {
+        const div = document.createElement('div');
+        div.className = `option-item ${calculatorSelection[type] === item.code ? 'selected' : ''}`;
+        div.innerHTML = `
+            <div class="option-header"><span>${item.code}</span></div>
+            <div class="option-desc">${item.desc}</div>
+        `;
+        div.addEventListener('click', () => {
+            calculatorSelection[type] = item.code;
+            container.querySelectorAll('.option-item').forEach(el => el.classList.remove('selected'));
+            div.classList.add('selected');
+            updateCalculatorResult();
+        });
+        container.appendChild(div);
+    });
+}
+
+function updateCalculatorResult() {
+    const stage = calculateStage(calculatorSelection.T, calculatorSelection.N, calculatorSelection.M);
+    const survival = SURVIVAL_RATES[stage] || '--';
+    
+    document.getElementById('calc-stage-result').textContent = stage;
+    document.getElementById('calc-survival-rate').textContent = survival;
+    
+    // Update badge color
+    const badge = document.getElementById('calc-stage-result');
+    if (stage.startsWith('IV')) badge.style.backgroundColor = '#ef4444';
+    else if (stage.startsWith('III')) badge.style.backgroundColor = '#f97316';
+    else if (stage.startsWith('II')) badge.style.backgroundColor = '#eab308';
+    else badge.style.backgroundColor = '#3b82f6';
+}
+
+function commitCalculatorSelection() {
+    currentSelection = { ...calculatorSelection };
+    // Also update UI selection in main view
+    // (This requires re-rendering or manually updating classes in main view)
+    // For simplicity, we just call selectOption for each which updates UI
+    selectOption('T', currentSelection.T);
+    selectOption('N', currentSelection.N);
+    selectOption('M', currentSelection.M);
+}
+
 function initAnalyzeUI() {
     const analyzeBtn = document.getElementById('analyze-btn');
     const ocrHeaderBtn = document.getElementById('ocr-header-btn');
@@ -52,6 +121,12 @@ function initAnalyzeUI() {
     const closeAnalyze = document.getElementById('close-analyze');
     const clearReport = document.getElementById('clear-report');
     const runAnalyze = document.getElementById('run-analyze');
+    
+    // Calculator UI
+    const openCalculatorBtn = document.getElementById('open-calculator-btn');
+    const tnmCalculatorModal = document.getElementById('tnm-calculator-modal');
+    const closeCalculator = document.getElementById('close-calculator');
+    const confirmCalcBtn = document.getElementById('confirm-calc-btn');
 
     if (analyzeBtn) {
         analyzeBtn.addEventListener('click', () => {
@@ -68,6 +143,36 @@ function initAnalyzeUI() {
     if (closeAnalyze) {
         closeAnalyze.addEventListener('click', () => {
             analyzeModal.classList.add('hidden');
+        });
+    }
+
+    if (openCalculatorBtn) {
+        openCalculatorBtn.addEventListener('click', () => {
+            tnmCalculatorModal.classList.remove('hidden');
+            // Init calculator with current analyzed values or defaults
+            // We need to parse the result summary to get current T/N/M from analysis
+            // But actually we already updated the main UI via analyzeReport -> selectOption
+            // So we can just init calculator with currentSelection
+            initCalculator(currentSelection);
+        });
+    }
+
+    if (closeCalculator) {
+        closeCalculator.addEventListener('click', () => {
+            tnmCalculatorModal.classList.add('hidden');
+        });
+    }
+
+    if (confirmCalcBtn) {
+        confirmCalcBtn.addEventListener('click', () => {
+            // Calculator updates currentSelection in real-time (if we bind it that way)
+            // Or we should have a separate state for calculator?
+            // For simplicity, let's use a separate state for calculator and commit on confirm.
+            commitCalculatorSelection();
+            tnmCalculatorModal.classList.add('hidden');
+            analyzeModal.classList.add('hidden'); // Close analyze modal too as we are done
+            updateResult(); // Update main UI
+            saveRecord(); // Optional: auto-save
         });
     }
 

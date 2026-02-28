@@ -73,28 +73,65 @@
     <div id="analyze-modal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>智能分析</h3>
+                <h2>智能分析</h2>
                 <button id="close-analyze" class="close-btn">&times;</button>
             </div>
             <div class="analyze-body">
-                <p class="hint-text">请粘贴病理或影像学报告，或上传图片/PDF：</p>
-                <div class="upload-area">
-                    <input type="file" id="ocr-upload" accept="image/jpeg,image/png,image/webp,image/bmp,application/pdf" style="display: none;">
-                    <button id="upload-btn" class="secondary-btn" style="width:100%; margin-bottom:0.5rem;">📸 上传/拍摄图片或PDF识别</button>
+                <div class="upload-section">
+                    <input type="file" id="ocr-upload" accept="image/*,.pdf,.docx,.pptx" hidden>
+                    <button id="upload-btn" class="primary-btn full-width">
+                        📸 上传/拍摄报告
+                    </button>
                     <div id="ocr-progress-container" class="hidden">
-                        <div class="progress-bar"><div id="ocr-progress-fill"></div></div>
-                        <span id="ocr-status" class="status-text">正在初始化...</span>
+                        <div class="progress-bar">
+                            <div id="ocr-progress-fill" class="progress-fill"></div>
+                        </div>
+                        <div id="ocr-status" class="status-text">准备就绪</div>
                     </div>
                 </div>
-                <textarea id="report-input" placeholder="例如：右肺上叶恶性肿瘤，大小约3.5cm，无淋巴结转移..."></textarea>
-                <div class="analyze-result hidden" id="analyze-result">
-                    <h4>分析结果：</h4>
-                    <p id="analyze-summary"></p>
+                <textarea id="report-input" placeholder="或在此粘贴CT报告内容..." rows="6"></textarea>
+                <div class="analyze-actions">
+                    <button id="clear-report" class="secondary-btn">清空</button>
+                    <button id="run-analyze" class="primary-btn">开始分析</button>
+                </div>
+                <div id="analyze-result" class="result-box hidden">
+                    <h3>分析结果</h3>
+                    <div id="analyze-summary"></div>
+                    <button id="open-calculator-btn" class="primary-btn full-width" style="margin-top: 1rem;">
+                        🧮 打开分期计算器校准
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TNM Calculator Modal -->
+    <div id="tnm-calculator-modal" class="modal hidden">
+        <div class="modal-content full-screen">
+            <div class="modal-header">
+                <h2>分期计算器</h2>
+                <button id="close-calculator" class="close-btn">&times;</button>
+            </div>
+            <div class="calculator-body">
+                <div class="calc-result-banner">
+                    <div class="calc-stage-badge" id="calc-stage-result">--</div>
+                    <div class="calc-survival">5年生存率: <span id="calc-survival-rate">--</span></div>
+                </div>
+                
+                <div class="calc-tabs">
+                    <button class="calc-tab-btn active" data-target="calc-t-panel">T</button>
+                    <button class="calc-tab-btn" data-target="calc-n-panel">N</button>
+                    <button class="calc-tab-btn" data-target="calc-m-panel">M</button>
+                </div>
+
+                <div class="calc-tab-content">
+                    <div id="calc-t-panel" class="calc-tab-panel active"></div>
+                    <div id="calc-n-panel" class="calc-tab-panel"></div>
+                    <div id="calc-m-panel" class="calc-tab-panel"></div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button id="clear-report" class="secondary-btn">清空</button>
-                <button id="run-analyze" class="primary-btn">开始分析</button>
+                <button id="confirm-calc-btn" class="primary-btn full-width">确认并保存</button>
             </div>
         </div>
     </div>
