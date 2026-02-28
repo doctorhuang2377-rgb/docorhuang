@@ -598,6 +598,57 @@ function parseReport(text) {
         M: { code: null, reasons: [] }
     };
 
+    // 1. Split text into sentences for context-aware analysis
+    // Split by period, semicolon, newline
+    // Note: Splitting by comma might be too aggressive ("Lung nodules, suspicious for mets")
+    // But for negative checks ("No pleural effusion, no pericardial effusion"), comma is important.
+    // Let's split by major delimiters first.
+    const sentences = text.split(/([。；;!?\n]+)/).reduce((acc, part) => {
+        if (part.match(/[。；;!?\n]+/)) {
+            // It's a delimiter, maybe append to last sentence if needed or ignore
+            return acc;
+        }
+        if (part.trim()) acc.push(part.trim());
+        return acc;
+    }, []);
+
+    // Helper to check if a sentence contains negative phrases
+    const isNegativeSentence = (sentence) => {
+        // Regex for negative patterns
+        // "未见", "无", "不考虑", "未发现", "正常", "规则" (shape), "清晰" (texture)
+        // Be careful: "无骨质破坏" (Negative), "无...征象"
+        // But "无" might be "无壁结节" (positive feature of cyst? No.)
+        // Common negative phrases in reports:
+        const negativePatterns = [
+            /未见明显.*异常/,
+            /未见.*破坏/,
+            /未见.*转移/,
+            /未见.*肿大/,
+            /未见.*增厚/,
+            /未见.*积液/,
+            /无.*异常/,
+            /无.*破坏/,
+            /无.*转移/,
+            /不考虑.*转移/,
+            /形态.*规则/, // Morphologically regular (usually benign)
+            /未发现/,
+            /未及/,
+            /正常/ // "Liver is normal"
+        ];
+
+        for (const p of negativePatterns) {
+            if (p.test(sentence)) return true;
+        }
+        
+        // Check simple "No" keywords if pattern didn't match
+        // But "No" might be part of "Node" (N0)? No, text is usually Chinese.
+        // "无" is dangerous if not contextual.
+        // Let's stick to patterns or specific phrases.
+        if (sentence.includes('未见异常') || sentence.includes('无异常')) return true;
+
+        return false;
+    };
+
     // Helper to find matches for a category
     const findMatches = (type, data) => {
         let bestMatch = null;
@@ -608,60 +659,81 @@ function parseReport(text) {
             let matched = false;
             let matchReason = '';
 
-            // Check explicit code (case insensitive)
-            // Use word boundary to avoid partial matches (e.g. T1 matching T1a)
-            // But strict boundary might fail on "pT1a".
-            // Let's use a regex that allows optional prefix like p/c/y and boundary at end
+            // Check explicit code (case insensitive) -> Global check (codes are specific)
             const codeRegex = new RegExp(`(?:c|p|y)?${item.code}\\b`, 'i');
             if (codeRegex.test(text)) {
                 matched = true;
                 matchReason = `匹配到明确分期: ${item.code}`;
             }
 
-            // Check patterns (Regex)
-            if (!matched && item.patterns) {
-                for (const pattern of item.patterns) {
-                    const match = pattern.exec(text);
-                    if (match) {
-                        // Negative Lookbehind Check (Simple approximation)
-                        // Check if "No" or "Not" precedes the match
-                        const index = match.index;
-                        const prefix = text.substring(Math.max(0, index - 10), index);
-                        
-                        if (/(无|未见|不|排除)/.test(prefix)) {
-                            // Likely negative: "未见骨质破坏"
-                            continue; 
-                        }
+            if (!matched) {
+                // Iterate through sentences to find evidence
+                for (const sentence of sentences) {
+                    // 1. Check if sentence is negative globally (e.g. "Abdomen is normal")
+                    // If negative, skip looking for M-stage keywords in this sentence?
+                    // But T-stage descriptions might be "Border is not clear" (Positive feature).
+                    // So negative check should be specific to the item being looked for?
+                    // Or if the sentence says "No metastasis", we shouldn't match "metastasis".
+                    
+                    const isNegative = isNegativeSentence(sentence);
+                    
+                    // If sentence is broadly negative ("No abnormalities seen"), 
+                    // we should be very careful about matching "Nodule" or "Effusion" here.
+                    // However, "No pleural effusion" contains "pleural effusion".
+                    // Strategy: If sentence matches item pattern, check if it also matches negative pattern.
 
-                        matched = true;
-                        matchReason = `匹配到描述模式: "${match[0]}"`;
-                        break;
-                    }
-                }
-            }
+                    // Check patterns (Regex)
+                    if (item.patterns) {
+                        for (const pattern of item.patterns) {
+                            if (pattern.test(sentence)) {
+                                // Match found! Now check if it's negated in this specific sentence.
+                                if (isNegative) {
+                                    // It matched a pattern, BUT the sentence is negative.
+                                    // E.g. Pattern: /Pleura.*Effusion/, Sentence: "No pleural effusion." -> Negative match.
+                                    // We should IGNORE this match.
+                                    continue;
+                                }
+                                
+                                // Double check local negation (in case sentence was long)
+                                // "Liver cysts, no metastasis."
+                                const match = pattern.exec(sentence);
+                                // Check if "No" immediately precedes match
+                                const prefix = sentence.substring(Math.max(0, match.index - 5), match.index);
+                                if (/[无不非]/.test(prefix)) continue;
 
-            // Check keywords
-            if (!matched && item.keywords) {
-                for (const kw of item.keywords) {
-                    try {
-                        const kwRegex = new RegExp(kw, 'i');
-                        if (kwRegex.test(text)) {
-                            matched = true;
-                            matchReason = `匹配到关键词: "${kw}"`;
-                            break;
-                        }
-                    } catch (e) {
-                        if (text.includes(kw)) {
-                            matched = true;
-                            matchReason = `匹配到关键词: "${kw}"`;
-                            break;
+                                matched = true;
+                                matchReason = `匹配到描述: "${match[0]}"`;
+                                break;
+                            }
                         }
                     }
+
+                    // Check keywords
+                    if (!matched && item.keywords) {
+                        for (const kw of item.keywords) {
+                            if (sentence.includes(kw)) {
+                                // Keyword found. Check context.
+                                // E.g. "Pleura" found in "Pleura is normal"
+                                if (isNegative) continue; 
+                                
+                                // Check immediate prefix
+                                const idx = sentence.indexOf(kw);
+                                const prefix = sentence.substring(Math.max(0, idx - 5), idx);
+                                if (/[无不非]/.test(prefix)) continue;
+                                if (/未见/.test(sentence.substring(Math.max(0, idx - 10), idx))) continue;
+
+                                matched = true;
+                                matchReason = `匹配到关键词: "${kw}"`;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (matched) break; // Found evidence in this sentence
                 }
             }
 
             if (matched) {
-                // If we found a match, check if it's "higher" than current best
                 if (index > bestIndex) {
                     bestIndex = index;
                     bestMatch = item.code;
