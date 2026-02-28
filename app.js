@@ -751,53 +751,47 @@ function selectOption(type, code) {
 }
 
 function calculateStage(t, n, m) {
-    // IASLC 8th Edition Logic (Simplified for clarity)
-
-    // 1. Metastasis (M)
-    if (m === 'M1a' || m === 'M1b') return 'IVA';
+    // 1. Distant Metastasis (M) - Overrides T and N
     if (m === 'M1c') return 'IVB';
+    if (m === 'M1a' || m === 'M1b') return 'IVA';
     if (m === 'Mx') return '无法评估';
 
     // 2. N3 Disease
     if (n === 'N3') {
+        if (['T1a', 'T1b', 'T1c', 'T2a', 'T2b'].includes(t)) return 'IIIB';
         if (['T3', 'T4'].includes(t)) return 'IIIC';
-        return 'IIIB'; // Tx, T0, Tis, T1, T2 -> IIIB
+        return '无法评估';
     }
 
     // 3. N2 Disease
     if (n === 'N2') {
+        if (['T1a', 'T1b', 'T1c', 'T2a', 'T2b'].includes(t)) return 'IIIA';
         if (['T3', 'T4'].includes(t)) return 'IIIB';
-        return 'IIIA'; // Tx, T0, Tis, T1, T2 -> IIIA
+        return '无法评估';
     }
 
     // 4. N1 Disease
     if (n === 'N1') {
+        if (['T1a', 'T1b', 'T1c', 'T2a'].includes(t)) return 'IIB';
+        if (['T2b'].includes(t)) return 'IIB'; // Correction: T2b N1 is IIB
         if (['T3', 'T4'].includes(t)) return 'IIIA';
-        if (['T2b'].includes(t)) return 'IIB'; // T2b N1 -> IIB
-        return 'IIB'; // Tx, T0, Tis, T1, T2a -> IIB (Wait, T1 N1 is IIB, T2a N1 is IIB)
+        return '无法评估';
     }
 
     // 5. N0 Disease
     if (n === 'N0') {
-        if (t === 'T4') return 'IIIA';
-        if (t === 'T3') return 'IIB';
-        if (t === 'T2b') return 'IIA';
-        if (t === 'T2a') return 'IB';
-        if (t === 'T1c') return 'IA3';
-        if (t === 'T1b') return 'IA2';
-        if (t === 'T1a') return 'IA1'; // Includes T1a(mi) if we had it
         if (t === 'Tis') return '0';
-        if (t === 'T0') return '0'; // T0 N0 M0 is usually not staged or 0? 
-        // Actually T0 N0 M0 is "No evidence of primary tumor", clinical stage 0 if screening? 
-        // But usually standard tables start at Tis.
-        // Occult Carcinoma: Tx N0 M0
-        if (t === 'Tx') return '隐匿性癌';
+        if (t === 'T1a') return 'IA1'; // T1a(mi) -> IA1
+        if (t === 'T1b') return 'IA2';
+        if (t === 'T1c') return 'IA3';
+        if (t === 'T2a') return 'IB';
+        if (t === 'T2b') return 'IIA';
+        if (t === 'T3') return 'IIB';
+        if (t === 'T4') return 'IIIA';
+        return '无法评估';
     }
 
-    // 6. Nx
-    if (n === 'Nx') return '无法评估';
-
-    return '未定义组合';
+    return '无法评估';
 }
 
 function updateResult() {
