@@ -94,17 +94,36 @@ const TNM_DATA_8TH = {
         { 
             code: 'M1a', 
             desc: '胸膜/心包播散：对侧肺叶内癌结节；胸膜或心包结节；恶性胸腔积液或心包积液',
-            keywords: ['胸膜播散', '心包播散', '对侧肺叶', '胸膜结节', '心包结节', '恶性胸腔积液', '恶性心包积液', '胸水', '心包积液']
+            keywords: ['胸膜播散', '心包播散', '对侧肺叶', '胸膜结节', '心包结节', '恶性胸腔积液', '恶性心包积液', '胸水', '心包积液'],
+            // Patterns: Pleura/Pericardium + Nodule/Effusion
+            patterns: [
+                /(胸膜|心包).{0,10}(结节|增厚|积液|播散)/,
+                /(胸腔).{0,5}(积液)/
+            ]
         },
         { 
             code: 'M1b', 
             desc: '单个远处器官的单发转移',
-            keywords: ['单发转移', '单个远处器官', '脑转移', '骨转移', '肾上腺转移', '肝转移', '脊柱转移', '椎体转移']
+            keywords: ['单发转移', '单个远处器官', '脑转移', '骨转移', '肾上腺转移', '肝转移', '脊柱转移', '椎体转移'],
+            // Patterns: Organ + Lesion/Metastasis (Single implied if not multiple)
+            patterns: [
+                /(脑|颅).{0,10}(强化|结节|占位|转移)/,
+                /(肾上腺).{0,10}(增粗|结节|肿块|占位|转移)/,
+                /(肝).{0,10}(低密度|占位|转移)/
+            ]
         },
         { 
             code: 'M1c', 
             desc: '单个或多个远处器官的多发转移',
-            keywords: ['多发转移', '多个远处器官', '脑多发', '骨多发', '肝多发']
+            keywords: ['多发转移', '多个远处器官', '脑多发', '骨多发', '肝多发'],
+            // Patterns: Bone metastasis is often M1c (multiple) or at least M1b. 
+            // In many contexts, "bone metastasis" implies M1b or M1c. Let's map strict bone findings here or check count.
+            // For safety, map bone abnormalities to M1c if "multiple" is implied or just M1b?
+            // User example: "Thoracic spine signal abnormality, consider metastasis" -> M1c (Bone)
+            patterns: [
+                /(骨|椎|肋|髂|股|肱).{0,10}(破坏|异常信号|代谢活跃|转移)/,
+                /(多发).{0,5}(转移|结节|灶)/
+            ]
         }
     ]
 };

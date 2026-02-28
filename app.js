@@ -509,6 +509,28 @@ function parseReport(text) {
                 matchReason = `匹配到明确分期: ${item.code}`;
             }
 
+            // Check patterns (Regex)
+            if (!matched && item.patterns) {
+                for (const pattern of item.patterns) {
+                    const match = pattern.exec(text);
+                    if (match) {
+                        // Negative Lookbehind Check (Simple approximation)
+                        // Check if "No" or "Not" precedes the match
+                        const index = match.index;
+                        const prefix = text.substring(Math.max(0, index - 10), index);
+                        
+                        if (/(无|未见|不|排除)/.test(prefix)) {
+                            // Likely negative: "未见骨质破坏"
+                            continue; 
+                        }
+
+                        matched = true;
+                        matchReason = `匹配到描述模式: "${match[0]}"`;
+                        break;
+                    }
+                }
+            }
+
             // Check keywords
             if (!matched && item.keywords) {
                 for (const kw of item.keywords) {
