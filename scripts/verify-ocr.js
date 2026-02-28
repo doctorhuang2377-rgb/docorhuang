@@ -33,6 +33,7 @@ async function verifyOcr() {
     // 但我们会尝试强制指定。
 
     try {
+        // Tesseract.js v5+ syntax: createWorker(langs, oem, options)
         const worker = await Tesseract.createWorker('chi_sim+eng', 1, {
             logger: m => console.log(m),
             langPath: LANG_DATA_PATH,

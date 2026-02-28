@@ -240,7 +240,8 @@ async function runOcr(imageBlob) {
         });
 
         // Attempt 1: Fully Local
-        const worker = await Tesseract.createWorker({
+        // Tesseract.js v5+ syntax: createWorker(langs, oem, options)
+        const workerPromise = Tesseract.createWorker('chi_sim+eng', 1, {
             logger: m => {
                 console.log('Tesseract Log:', m);
                 if (m.status === 'recognizing text') {
@@ -252,21 +253,14 @@ async function runOcr(imageBlob) {
             workerPath: basePath + 'lib/tesseract/worker.min.js',
             corePath: basePath + 'lib/tesseract/tesseract-core.wasm.js',
             langPath: langPath,
-            // cacheMethod: 'none', // Removed to allow caching
             gzip: false
         });
 
-        if (ocrStatus) ocrStatus.textContent = '加载本地语言包...';
+        if (ocrStatus) ocrStatus.textContent = '正在初始化本地引擎 (超时: 20s)...';
         
-        // Timeout for loadLanguage and initialize
-        await withTimeout(
-            worker.loadLanguage('chi_sim+eng'), 
-            20000, 
-            '本地语言包加载超时'
-        );
-        
-        await withTimeout(
-            worker.initialize('chi_sim+eng'), 
+        // Timeout for worker creation and initialization
+        const worker = await withTimeout(
+            workerPromise, 
             20000, 
             '本地引擎初始化超时'
         );
@@ -289,8 +283,10 @@ async function runOcrFallback(imageBlob) {
     const ocrStatus = document.getElementById('ocr-status');
 
     try {
+        if (ocrStatus) ocrStatus.textContent = '下载在线语言包 (超时: 30s)...';
+
         // Attempt 2: CDN / Default
-        const worker = await Tesseract.createWorker({
+        const workerPromise = Tesseract.createWorker('chi_sim+eng', 1, {
             logger: m => {
                 if (m.status === 'recognizing text') {
                     const pct = Math.floor(m.progress * 100);
@@ -300,16 +296,8 @@ async function runOcrFallback(imageBlob) {
             }
         });
 
-        if (ocrStatus) ocrStatus.textContent = '下载在线语言包 (超时: 30s)...';
-        
-        await withTimeout(
-            worker.loadLanguage('chi_sim+eng'), 
-            30000, 
-            '在线语言包下载超时'
-        );
-        
-        await withTimeout(
-            worker.initialize('chi_sim+eng'), 
+        const worker = await withTimeout(
+            workerPromise, 
             30000, 
             '在线引擎初始化超时'
         );
