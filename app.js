@@ -373,7 +373,8 @@ async function runOcr(imageBlob) {
 
         // Attempt 1: Fully Local
         // Tesseract.js v5+ syntax: createWorker(langs, oem, options)
-        const workerPromise = Tesseract.createWorker('chi_sim+eng', 1, {
+        // Use ONLY chi_sim to prevent English model from forcing latin characters on Chinese text
+        const workerPromise = Tesseract.createWorker('chi_sim', 1, {
             logger: m => {
                 console.log('Tesseract Log:', m);
                 if (m.status === 'recognizing text') {
@@ -400,7 +401,10 @@ async function runOcr(imageBlob) {
         // Optimize Parameters
         await worker.setParameters({
             tessedit_pageseg_mode: Tesseract.PSM.AUTO,
-            tessedit_char_whitelist: '0123456789.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ一二三四五六七八九十百千万大小左中右上下肺叶段门支气管纵隔淋巴结癌瘤肿转移浸润侵犯胸膜心包积液TNM', // Whitelist common med terms
+            // Extended whitelist: Common Chinese chars + Med terms + Basic Punctuation + Digits + Letters
+            // Note: chi_sim already includes most chars. The whitelist is to filter OUT garbage.
+            // Be careful not to exclude valid chars.
+            tessedit_char_whitelist: '0123456789.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ一二三四五六七八九十百千万大小左中右上下肺叶段门支气管纵隔淋巴结癌瘤肿转移浸润侵犯胸膜心包积液TNM影像诊断意见检查结果现病史既往史描述见无有未不考虑可能建议复查增强扫描密度影条索状斑片状结节灶软组织窗骨窗椎体附件肋骨胸骨锁骨肩胛骨肾上腺肝脏脑颅内甲状腺食管气管血管主动脉肺动脉静脉心脏心房心室壁层脏层间隙增厚增粗扩大缩小充盈缺损狭窄阻塞截断伴同侧对侧双侧多发单发散在少量大量中量部分全部边缘毛糙分叶毛刺牵拉凹陷胸廓对称纹理清晰紊乱',
         });
 
         if (ocrStatus) ocrStatus.textContent = '正在识别文字...';
